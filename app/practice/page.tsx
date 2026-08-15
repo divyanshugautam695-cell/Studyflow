@@ -4,10 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, GraduationCap, RotateCcw, Target } from 'lucide-react';
 
 export default function PracticePage() {
-  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const [classNo] = useState(params?.get('class') || '12');
-  const [subject] = useState(params?.get('subject') || 'Physics');
-  const [topic] = useState(params?.get('topic') || 'Current Electricity');
+  const [classNo, setClassNo] = useState('12');
+  const [subject, setSubject] = useState('Physics');
+  const [topic, setTopic] = useState('Current Electricity');
   const [track, setTrack] = useState('NCERT');
   const [level, setLevel] = useState('Exam');
   const [questions, setQuestions] = useState<any[]>([]);
@@ -16,7 +15,7 @@ export default function PracticePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const score = useMemo(() => questions.reduce((n,q,i)=>n+(selected[i]===q.answer?1:0),0), [questions,selected]);
+  const score = useMemo(() => questions.reduce((n,q,i)=>n+(selected[i]===String(q.answer).trim().charAt(0).toUpperCase()?1:0),0), [questions,selected]);
 
   async function generate() {
     setLoading(true); setError(''); setQuestions([]); setSelected({}); setSubmitted(false);
@@ -29,13 +28,18 @@ export default function PracticePage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { generate(); }, []);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    setClassNo(p.get('class') || '12'); setSubject(p.get('subject') || 'Physics'); setTopic(p.get('topic') || 'Current Electricity');
+  }, []);
+
+  useEffect(() => { if (classNo && subject && topic) generate(); }, [classNo, subject, topic]);
 
   return <main className="min-h-screen bg-[#f5f7fa] px-5 py-8"><div className="mx-auto max-w-5xl">
     <header className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#102a43] text-white"><GraduationCap/></div><div><b className="text-xl">StudyFlow Practice</b><p className="text-xs text-slate-400">{subject} • {topic} • Class {classNo}</p></div></div><a href="/curriculum" className="text-sm font-bold text-[#1769e0]">Change chapter</a></header>
     <section className="mt-7 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex flex-wrap items-end gap-3"><div><label className="text-xs font-bold uppercase tracking-wider text-slate-400">Preparation track</label><select value={track} onChange={e=>setTrack(e.target.value)} className="mt-2 block rounded-xl border border-slate-200 p-3 text-sm"><option>NCERT</option><option>JEE Main</option><option>NEET UG</option></select></div><div><label className="text-xs font-bold uppercase tracking-wider text-slate-400">Difficulty</label><select value={level} onChange={e=>setLevel(e.target.value)} className="mt-2 block rounded-xl border border-slate-200 p-3 text-sm"><option>Basic</option><option>Application</option><option>Exam</option><option>JEE / NEET</option></select></div><button onClick={generate} disabled={loading} className="btn-primary rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-50">{loading?'Generating…':'Generate new set'}</button></div></section>
     {error && <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-    {questions.length>0 && <section className="mt-6 space-y-4">{questions.map((q,i)=><article key={i} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex items-start justify-between gap-4"><div><span className="text-xs font-bold text-slate-400">QUESTION {i+1}</span><h2 className="mt-2 text-base font-bold leading-6 text-slate-900">{q.question}</h2></div><span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700">{q.difficulty || level}</span></div><div className="mt-5 grid gap-2">{(q.options||[]).map((option:string,j:number)=><button key={j} onClick={()=>!submitted&&setSelected({...selected,[i]:option.startsWith(String.fromCharCode(65+j))?String.fromCharCode(65+j):option})} className={`rounded-xl border p-3 text-left text-sm ${selected[i]===String.fromCharCode(65+j)?'border-blue-400 bg-blue-50':''} ${submitted && q.answer===String.fromCharCode(65+j)?'border-emerald-400 bg-emerald-50':''}`}>{String.fromCharCode(65+j)}. {option}</button>)}</div>{submitted&&<div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6"><b>{selected[i]===q.answer?'Correct':'Review this one'}</b><p className="mt-1 text-slate-600">Answer: {q.answer}. {q.explanation}</p></div>}</article>)}</section>}
+    {questions.length>0 && <section className="mt-6 space-y-4">{questions.map((q,i)=>{const answerLetter=String(q.answer||'').trim().charAt(0).toUpperCase();return <article key={i} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex items-start justify-between gap-4"><div><span className="text-xs font-bold text-slate-400">QUESTION {i+1}</span><h2 className="mt-2 text-base font-bold leading-6 text-slate-900">{q.question}</h2></div><span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-700">{q.difficulty || level}</span></div><div className="mt-5 grid gap-2">{(q.options||[]).map((option:string,j:number)=>{const letter=String.fromCharCode(65+j);return <button key={j} onClick={()=>!submitted&&setSelected({...selected,[i]:letter})} className={`rounded-xl border p-3 text-left text-sm ${selected[i]===letter?'border-blue-400 bg-blue-50':''} ${submitted&&answerLetter===letter?'border-emerald-400 bg-emerald-50':''}`}>{letter}. {option}</button>})}</div>{submitted&&<div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6"><b>{selected[i]===answerLetter?'Correct':'Review this one'}</b><p className="mt-1 text-slate-600">Answer: {answerLetter}. {q.explanation}</p></div>}</article>})}</section>}
     {questions.length>0 && <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur"><div className="text-sm font-bold">{submitted?<><CheckCircle2 className="mr-1 inline text-emerald-600"/> Score: {score}/{questions.length}</>:'Choose an answer for each question.'}</div>{!submitted?<button onClick={()=>setSubmitted(true)} className="btn-primary rounded-xl px-5 py-3 text-sm font-bold">Submit test</button>:<button onClick={generate} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold"><RotateCcw size={15} className="mr-2 inline"/>New set</button>}</div>}
     <div className="mt-8 rounded-2xl bg-[#102a43] p-5 text-sm leading-6 text-blue-100"><Target size={18} className="mb-2"/><b>StudyFlow rule:</b> questions are generated as original practice. For JEE Main and NEET UG, use the official NTA syllabus and notices as the authority for the current exam pattern.</div>
   </div></main>;
