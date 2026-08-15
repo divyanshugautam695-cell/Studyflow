@@ -2,71 +2,81 @@
 
 > **Know what to study. Know why it matters.**
 
-StudyFlow is an adaptive learning platform for Classes 1–12, with advanced preparation paths for JEE and NEET. It combines curriculum-aware tutoring, problem solving, topic-wise practice, mistake analysis and adaptive planning.
+StudyFlow is an adaptive learning platform for Classes 1–12 with chapter-wise NCERT learning and dedicated JEE Main / NEET UG preparation paths.
 
-## What is implemented
+## Current build
 
-- Professional responsive dashboard with a restrained navy/blue visual system
-- Class selector for Classes 1–12
-- Subject and chapter-oriented practice flow
-- AI Tutor UI with a server-side model endpoint
-- Adaptive study-session planner
-- Tests, progress, mastery and priority-topic views
-- JEE / NEET practice mode entry points
-- Official NCERT portal configuration
-- No client-side exposure of model tokens
+- Professional responsive learning dashboard
+- AI Tutor using an open-weight model through Hugging Face Inference Providers
+- Chapter-wise practice generation with structured quizzes
+- NCERT curriculum metadata for Classes 9–12 and official-source routing for the full Classes 1–12 catalog
+- JEE Main and NEET UG practice tracks
+- Google OAuth, GitHub OAuth and email magic-link authentication through Supabase Auth
+- Server-side AI token handling
+- Official NTA/NCERT source links
 
 ## AI model
 
-StudyFlow uses an open-weight instruction model through Hugging Face Inference by default:
+Default model:
 
-`Qwen/Qwen2.5-7B-Instruct`
+`Qwen/Qwen2.5-7B-Instruct:fastest`
 
-This is intentionally **not described as a free GPT API**. OpenAI's API does not currently provide a general free API tier; StudyFlow therefore uses an open model for the low-cost/free-development path. The model can be replaced later with another provider without changing the UI.
+The application uses Hugging Face's OpenAI-compatible Inference Providers router. The model is configurable with `HF_MODEL`.
 
-### Environment variables
-
-Create `.env.local` locally or add these to Vercel Project Settings → Environment Variables:
+### Vercel environment variables
 
 ```text
 HF_TOKEN=your_huggingface_token
-HF_MODEL=Qwen/Qwen2.5-7B-Instruct
+HF_MODEL=Qwen/Qwen2.5-7B-Instruct:fastest
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-Never put the token in `NEXT_PUBLIC_*` variables and never commit it to GitHub.
+Never put `HF_TOKEN` in a `NEXT_PUBLIC_*` variable and never commit it to GitHub.
 
-## NCERT data strategy
+## Authentication setup
 
-StudyFlow references the official NCERT textbook portals rather than copying an entire textbook corpus into the public repository. NCERT provides textbook PDFs for Classes I–XII and chapter links on its official portal. The app can use these official resources as the curriculum source of truth, then index permitted/user-provided material for retrieval.
+StudyFlow uses Supabase Auth with cookie-based Next.js sessions. Supabase officially supports Google sign-in and GitHub/social providers for web apps.
 
-Official sources:
-- https://ncert.nic.in/textbook.php
-- https://ncertbooks.ncert.gov.in/
+1. Create a Supabase project.
+2. In Supabase **Project Settings → API**, copy the Project URL and Publishable key to Vercel as `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+3. In **Authentication → Providers**, enable Google and/or GitHub.
+4. For Google, create a Web OAuth client in Google Auth Platform and add the Supabase callback URL shown by the Supabase Google provider settings. Also add the deployed StudyFlow origin to the allowed origins/redirect configuration.
+5. For GitHub, create an OAuth App and use the callback URL shown by Supabase.
+6. Add your deployed StudyFlow URL to the Supabase Auth URL/redirect allow-list.
+7. Open `/login` on the deployed site.
 
-## JEE / NEET
+Supabase's Next.js and Google OAuth documentation should be treated as the current configuration reference.
 
-The competitive mode is designed to generate **original** practice at JEE/NEET difficulty. It should not reproduce copyrighted coaching material or claim to predict exact exam questions. Difficulty, topic and student mastery are used to adapt the generated set.
+## Official curriculum sources
 
-## Architecture
+StudyFlow does not copy an entire NCERT textbook corpus into this public repository. It stores curriculum metadata and links to official sources, then uses original AI-generated practice. The official sources are:
+
+- NCERT textbooks: https://ncert.nic.in/textbook.php
+- NCERT books portal: https://ncertbooks.ncert.gov.in/
+- JEE Main 2026 syllabus: https://jeemain.nta.nic.in/document/syllabus-2026/
+- JEE Main information bulletin: https://jeemain.nta.nic.in/information-bulletin/
+- NEET UG official portal: https://neet.nta.nic.in/
+
+The current official source remains authoritative for textbook editions, syllabus changes, notices and exam rules.
+
+## Preparation model
 
 ```text
-Class + Subject + Chapter + Student history
-                    ↓
-          Curriculum / RAG layer
-                    ↓
-        Open-weight instruction model
-                    ↓
-      ┌─────────────┼─────────────┐
-      ↓             ↓             ↓
-   Tutor         Solver       Practice AI
-      └─────────────┼─────────────┘
-                    ↓
-          Answer / mistake analysis
-                    ↓
-            Mastery profile
-                    ↓
-          Adaptive study plan
+Class + Track + Subject + Chapter
+                ↓
+       Curriculum metadata
+                ↓
+        AI Tutor / Practice
+                ↓
+        Student answers
+                ↓
+      Score + mistake analysis
+                ↓
+        Adaptive next topic
 ```
+
+JEE/NEET questions generated by StudyFlow are original practice and are not represented as leaked, guaranteed or copied exam questions.
 
 ## Run locally
 
@@ -77,17 +87,12 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-## Deployment
-
-Import the repository into Vercel, then add `HF_TOKEN` and optionally `HF_MODEL` as server-side environment variables. Redeploy after adding them.
-
 ## Important next engineering milestones
 
-1. Ingest and normalize chapter metadata for every supported NCERT class/subject.
-2. Add PDF/image upload + OCR and RAG over user-provided material.
-3. Make practice generation return validated structured JSON and render full quizzes.
+1. Expand verified chapter metadata across the remaining Classes 1–8 subjects.
+2. Add user profiles and persistent mastery history in Supabase Postgres.
+3. Add PDF/image upload, OCR and retrieval over user-provided study material.
 4. Add answer evaluation and misconception classification.
-5. Persist student profiles and mastery history.
-6. Add authentication and secure rate limiting.
-7. Add a full mock-test engine for school/JEE/NEET paths.
-8. Add automated build/type checks before every deployment.
+5. Add full-length school/JEE/NEET mock-test engines.
+6. Add rate limiting and abuse protection for public AI endpoints.
+7. Add automated type/build checks before deployment.
