@@ -1,6 +1,16 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+const protectedPrefixes = [
+  '/dashboard',
+  '/tutor',
+  '/practice',
+  '/curriculum',
+  '/tests',
+  '/progress',
+  '/profile',
+];
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -22,8 +32,19 @@ export async function updateSession(request: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (user && request.nextUrl.pathname === '/') {
+  const pathname = request.nextUrl.pathname;
+  const isProtected = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+
+  if (!user && isProtected) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('next', pathname);
+    return NextResponse.redirect(url);
+  }
+
+  if (user && (pathname === '/' || pathname === '/login')) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
+
   return response;
 }
