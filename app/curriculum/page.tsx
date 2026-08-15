@@ -8,9 +8,18 @@ export default function CurriculumPage() {
   const [track, setTrack] = useState<'NCERT' | 'JEE Main' | 'NEET UG'>('NCERT');
   const [classNo, setClassNo] = useState('12');
   const [subject, setSubject] = useState('Physics');
-  const subjects = track === 'NCERT' ? (schoolSubjects[classNo] || []) : competitiveTracks[track].subjects;
+
+  // Normalize both NCERT arrays and competitive-track readonly tuples to string[].
+  // This avoids TypeScript's union overload error on Array.includes during Vercel builds.
+  const subjects: string[] = track === 'NCERT'
+    ? (schoolSubjects[classNo] || [])
+    : [...competitiveTracks[track].subjects];
+
   const selectedSubject = subjects.includes(subject) ? subject : subjects[0] || '';
-  const topicList = useMemo(() => chapters[classNo]?.[selectedSubject] || [], [classNo, selectedSubject]);
+  const topicList = useMemo(
+    () => chapters[classNo]?.[selectedSubject] || [],
+    [classNo, selectedSubject],
+  );
 
   return <main className="min-h-screen grid-bg px-5 py-8 lg:px-10"><div className="mx-auto max-w-6xl">
     <header className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#102a43] text-white"><GraduationCap/></div><div><b className="text-xl">StudyFlow</b><p className="text-xs text-slate-400">Curriculum & exam preparation</p></div></div><a href="/" className="text-sm font-bold text-[#1769e0]">Back to dashboard</a></header>
