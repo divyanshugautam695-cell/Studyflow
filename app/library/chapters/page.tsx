@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { BookOpen, Brain, ChevronRight, ExternalLink, Target } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { libraryCatalog } from '@/lib/library/catalog';
 
-export default function LibraryChaptersPage() {
+function LibraryChaptersContent() {
   const params = useSearchParams();
   const cls = params.get('class') || '12';
   const subjects = libraryCatalog[cls] || libraryCatalog['12'];
@@ -42,5 +43,13 @@ export default function LibraryChaptersPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function LibraryChaptersPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#f4f5f7] p-8"><div className="mx-auto max-w-6xl rounded-[2rem] bg-white p-8 shadow-sm">Loading Study Library…</div></main>}>
+      <LibraryChaptersContent />
+    </Suspense>
   );
 }
