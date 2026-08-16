@@ -1,23 +1,20 @@
 package com.studyflow.app
 
+import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
 import android.view.Gravity
-import android.view.View
-import android.view.ViewGroup
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import org.json.JSONObject
 
-class MainActivity : ComponentActivity() {
+class MainActivity : Activity() {
     companion object {
         private const val SUPABASE_AUTH = "https://sjnjhcfplohuiljjeyjp.supabase.co/auth/v1/authorize"
         private const val REDIRECT_URI = "studyflow://auth-callback"
@@ -43,7 +40,6 @@ class MainActivity : ComponentActivity() {
     private fun handleAuthCallback(intent: Intent): Boolean {
         val data = intent.data ?: return false
         if (data.scheme != "studyflow") return false
-
         val fragment = data.fragment ?: return false
         val values = fragment.split("&").mapNotNull {
             val p = it.split("=", limit = 2)
@@ -65,18 +61,16 @@ class MainActivity : ComponentActivity() {
     } catch (_: Exception) { null }
 
     private fun showStartScreen() {
-        val loggedIn = getSharedPreferences(PREFS, MODE_PRIVATE).getString(TOKEN, null) != null
-        if (loggedIn) showDashboard() else showLogin()
+        if (getSharedPreferences(PREFS, MODE_PRIVATE).getString(TOKEN, null) != null) showDashboard() else showLogin()
     }
 
-    private fun baseLayout(): LinearLayout {
+    private fun baseLayout() {
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(22), dp(24), dp(24))
             setBackgroundColor(Color.rgb(248, 250, 252))
         }
         setContentView(root)
-        return root
     }
 
     private fun showLogin() {
@@ -96,10 +90,8 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.rgb(15, 39, 64))
-            setPadding(dp(14), dp(8), dp(14), dp(8))
         }
         box.addView(icon, LinearLayout.LayoutParams(dp(72), dp(72)).apply { bottomMargin = dp(20) })
-
         box.addView(label("StudyFlow", 28f, Color.rgb(15, 23, 42)))
         box.addView(label("Your personal study companion", 15f, Color.rgb(100, 116, 139)))
 
@@ -109,19 +101,17 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(Color.WHITE)
         }
         box.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(34) })
-
         card.addView(label("Welcome back", 24f, Color.rgb(15, 23, 42)))
         card.addView(label("Sign in to keep your learning progress synced.", 14f, Color.rgb(100, 116, 139)))
 
         val google = button("Continue with Google")
         google.setOnClickListener { startGoogleLogin() }
         card.addView(google, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(24) })
-
         card.addView(label("Secure sign-in", 13f, Color.rgb(71, 85, 105)).apply {
             gravity = Gravity.CENTER
             setPadding(0, dp(18), 0, dp(8))
         })
-        card.addView(label("Google authentication opens in your browser and returns directly to the StudyFlow app.", 13f, Color.rgb(100, 116, 139)))
+        card.addView(label("Google authentication opens briefly for authorization and then returns directly to the StudyFlow app.", 13f, Color.rgb(100, 116, 139)))
     }
 
     private fun startGoogleLogin() {
@@ -148,7 +138,6 @@ class MainActivity : ComponentActivity() {
         content.addView(label("Good to see you, ${email.substringBefore("@")} 👋", 16f, Color.rgb(71, 85, 105)).apply {
             setPadding(0, dp(4), 0, dp(22))
         })
-
         content.addView(statCard("📚  Today's focus", "Build a consistent study streak", "Start a study session"))
         content.addView(statCard("🎯  Practice", "Test yourself and track weak topics", "Practice questions"))
         content.addView(statCard("🧠  Mastery", "Review your topic progress", "View topic mastery"))
@@ -162,9 +151,7 @@ class MainActivity : ComponentActivity() {
         content.addView(logout, LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(18) })
 
         val website = button("Open StudyFlow website")
-        website.setOnClickListener {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://studyflow-gamma-bice.vercel.app/")))
-        }
+        website.setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://studyflow-gamma-bice.vercel.app/"))) }
         content.addView(website, LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(10) })
     }
 
@@ -177,7 +164,7 @@ class MainActivity : ComponentActivity() {
         card.addView(label(title, 18f, Color.rgb(15, 23, 42)))
         card.addView(label(subtitle, 13f, Color.rgb(100, 116, 139)).apply { setPadding(0, dp(6), 0, dp(12)) })
         val b = button(action)
-        b.setOnClickListener { Toast.makeText(this, "$action is ready for the native StudyFlow experience.", Toast.LENGTH_SHORT).show() }
+        b.setOnClickListener { Toast.makeText(this, "$action is available in the native StudyFlow app.", Toast.LENGTH_SHORT).show() }
         card.addView(b, LinearLayout.LayoutParams(-1, dp(44)))
         return card.apply { layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) } }
     }
