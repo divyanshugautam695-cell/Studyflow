@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, BookOpen, Brain, Camera, ExternalLink, Mic, Target } from 'lucide-react';
 
-export default function LibraryTopicPage() {
+function LibraryTopicContent() {
   const params = useSearchParams();
   const cls = params.get('class') || '12';
   const subject = params.get('subject') || 'Physics';
   const chapter = params.get('chapter') || 'Chapter';
-  const practice = `/practice?class=${encodeURIComponent(cls)}&subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(chapter)}`;
+  const practice = `/practice?class=${encodeURIComponent(cls)}&subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(chapter)}`;
   const tutor = `/tutor?class=${encodeURIComponent(cls)}&subject=${encodeURIComponent(subject)}&chapter=${encodeURIComponent(chapter)}`;
 
   return (
@@ -34,5 +35,13 @@ export default function LibraryTopicPage() {
         <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-5"><p className="text-sm leading-6 text-blue-900"><b>StudyFlow path:</b> Read the official chapter → ask the AI tutor about difficult concepts → practice → review mistakes → repeat until mastery improves.</p></div>
       </div>
     </main>
+  );
+}
+
+export default function LibraryTopicPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#f4f5f7] p-8"><div className="mx-auto max-w-5xl rounded-[2rem] bg-white p-8 shadow-sm">Loading chapter…</div></main>}>
+      <LibraryTopicContent />
+    </Suspense>
   );
 }
