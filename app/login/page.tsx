@@ -10,16 +10,33 @@ export default function LoginPage() {
   const [message, setMessage] = useState('');
   const supabase = createClient();
 
+  function getNextPath() {
+    const value = new URLSearchParams(window.location.search).get('next');
+    return value && value.startsWith('/') && !value.startsWith('//') ? value : '/dashboard';
+  }
+
   async function oauth(provider: 'google' | 'github') {
     setBusy(provider); setMessage('');
-    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/auth/callback` } });
+    const next = getNextPath();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
+    });
     if (error) { setMessage(error.message); setBusy(null); }
   }
 
   async function magicLink(event: FormEvent) {
     event.preventDefault(); if (!email.trim()) return;
     setBusy('email'); setMessage('');
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: `${window.location.origin}/auth/callback` } });
+    const next = getNextPath();
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
+    });
     setBusy(null); setMessage(error ? error.message : 'Check your email for a secure StudyFlow sign-in link.');
   }
 
