@@ -2,7 +2,18 @@ import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-function cleanQuestion(q: any, index: number) {
+function looksOffSubject(q: any, subject: string) {
+  const text = `${String(q?.question || '')} ${Array.isArray(q?.options) ? q.options.join(' ') : ''}`.toLowerCase();
+  const forbidden: Record<string, string[]> = {
+    Mathematics: ['resistance', 'resistor', 'voltage', 'current electricity', 'circuit', 'ohm', 'magnetic field', 'magnetic flux', 'ammeter', 'voltmeter', 'lens formula', 'refraction', 'mole concept', 'chemical reaction', 'enzyme', 'dna', 'photosynthesis'],
+    Physics: ['mitosis', 'meiosis', 'dna replication', 'photosynthesis', 'digestion', 'respiration in plants', 'amino acid sequence', 'organic reaction mechanism'],
+    Chemistry: ['velocity-time graph', 'newton\'s law', 'projectile motion', 'resistance of a resistor', 'magnetic flux', 'mitosis', 'meiosis', 'neural control'],
+    Biology: ['ohm\'s law', 'resistance of a resistor', 'kirchhoff', 'electromagnetic induction', 'projectile motion', 'quadratic equation', 'determinant', 'chemical equilibrium calculation'],
+  };
+  return (forbidden[subject] || []).some(term => text.includes(term));
+}
+
+function cleanQuestion(q: any, index: number, subject: string) {
   const options = Array.isArray(q?.options) ? q.options.map((x: any) => String(x).trim()).filter(Boolean).slice(0, 4) : [];
   const answerRaw = String(q?.answer ?? '').trim().toUpperCase();
   const answer = /^[A-D]$/.test(answerRaw)
@@ -13,6 +24,7 @@ function cleanQuestion(q: any, index: number) {
 
   if (!q?.question || options.length !== 4 || !answer) return null;
   if (new Set(options.map((x: string) => x.toLowerCase())).size !== 4) return null;
+  if (looksOffSubject(q, subject)) return null;
 
   return {
     id: String(q.id || `q${index + 1}`),
@@ -46,14 +58,15 @@ export async function POST(req: Request) {
     const safeTrack = String(track).trim();
     const safeLevel = String(level).trim();
     const total = Math.min(Math.max(Number(count) || 10, 1), 20);
+    const generationTotal = Math.min(total + 4, 20);
     const model = process.env.HF_MODEL || 'Qwen/Qwen2.5-7B-Instruct:fastest';
     const competitive = safeTrack === 'JEE Main' || safeTrack === 'NEET UG' || safeLevel === 'JEE / NEET';
 
     const subjectInstruction =
-      safeSubject === 'Physics' ? 'Use physics laws, concepts, units, equations and numerical reasoning where appropriate.' :
-      safeSubject === 'Chemistry' ? 'Use chemistry concepts, reactions, periodic trends, structures, equations and calculations where appropriate.' :
-      safeSubject === 'Mathematics' ? 'Use mathematical reasoning, formulas and calculations. Make numerical answers exact unless the question explicitly requires approximation.' :
-      safeSubject === 'Biology' ? 'Use biology concepts, terminology, processes and NCERT-aligned factual reasoning.' :
+      safeSubject === 'Physics' ? 'Use physics laws, concepts, units, equations and numerical reasoning where appropriate. Do not write biology or chemistry questions.' :
+      safeSubject === 'Chemistry' ? 'Use chemistry concepts, reactions, periodic trends, structures, equations and calculations where appropriate. Do not write physics or biology questions.' :
+      safeSubject === 'Mathematics' ? 'Use mathematical reasoning, formulas and calculations. Make numerical answers exact unless the question explicitly requires approximation. Do NOT use physics, chemistry or biology scenarios such as resistance, voltage, current electricity, circuits, chemical reactions, enzymes or DNA.' :
+      safeSubject === 'Biology' ? 'Use biology concepts, terminology, processes and NCERT-aligned factual reasoning. Do not write physics or mathematics questions.' :
       safeSubject === 'Science' ? 'Keep the question strictly within the selected school Science topic and age-appropriate scientific concepts.' :
       safeSubject === 'Social Science' ? 'Use history, geography, civics or economics only when supported by the selected topic.' :
       `Keep every question strictly within ${safeSubject} and the selected topic.`;
@@ -68,6 +81,7 @@ Every question MUST be a standalone objective single-correct multiple-choice que
 The class, subject, topic and track are hard constraints. Never substitute a different class, subject, chapter or generic topic.
 Vary concepts, numerical values, wording and distractors across the set. Never repeat the same question or merely change the scenario.
 For school questions, stay appropriate to the requested class level. For NCERT, stay aligned with the selected topic and established NCERT-level concepts without inventing textbook quotations.
+For Mathematics, every question and all four options must be mathematics questions; never turn a mathematical question into a physics/chemistry/biology word problem.
 Return ONLY valid JSON in this exact shape: {"questions":[{"id":"q1","question":"...","options":["...","...","...","..."],"answer":"A","explanation":"...","difficulty":"Easy|Medium|Hard"}]}. No markdown fences, no extra text.
 The answer field must be exactly A, B, C or D. Explanations must state why the correct option is correct. Never claim a question is guaranteed to appear in an exam.`;
 
@@ -77,7 +91,7 @@ Subject: ${safeSubject}
 Chapter/topic: ${safeTopic}
 Track: ${safeTrack}
 Difficulty: ${safeLevel}
-Generate exactly ${total} fresh objective MCQs. Make this set materially different from any previous set, even if the same class, subject and topic are requested again.`;
+Generate exactly ${generationTotal} fresh objective MCQs. Make this set materially different from any previous set, even if the same class, subject and topic are requested again. Return only questions that belong to the selected subject.`;
 
     const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
       method: 'POST',
@@ -87,7 +101,7 @@ Generate exactly ${total} fresh objective MCQs. Make this set materially differe
         messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
         temperature: 0.8,
         top_p: 0.9,
-        max_tokens: Math.max(2600, total * 350),
+        max_tokens: Math.max(3200, generationTotal * 350),
       }),
       cache: 'no-store',
     });
@@ -117,9 +131,9 @@ Generate exactly ${total} fresh objective MCQs. Make this set materially differe
       return NextResponse.json({ error: 'The generated set was not valid JSON. Please try again.' }, { status: 502 });
     }
 
-    const questions = parsed.questions.map(cleanQuestion).filter(Boolean).slice(0, total);
-    if (questions.length < Math.min(3, total)) {
-      return NextResponse.json({ error: 'The AI generated too few valid objective questions. Please generate a new set.' }, { status: 502 });
+    const questions = parsed.questions.map((q: any, i: number) => cleanQuestion(q, i, safeSubject)).filter(Boolean).slice(0, total);
+    if (questions.length < total) {
+      return NextResponse.json({ error: `The AI returned too few valid ${safeSubject} questions for ${safeClass} • ${safeTopic}. Please generate a fresh set.` }, { status: 502 });
     }
 
     return NextResponse.json({ questions, track: safeTrack, classNo: safeClass, subject: safeSubject, topic: safeTopic, requestId });
