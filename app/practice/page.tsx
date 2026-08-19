@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, GraduationCap, RotateCcw, Target } from 'lucide-react';
 import { chapters, competitiveTracks, schoolSubjects } from '../../data/curriculum';
 
@@ -18,16 +18,16 @@ export default function PracticePage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [initialized, setInitialized] = useState(false);
+  const requestController = useRef<AbortController | null>(null);
+  const requestNumber = useRef(0);
 
   const subjects = useMemo(() => {
     if (track === 'NCERT') return schoolSubjects[classNo] || [];
     return [...competitiveTracks[track].subjects];
   }, [classNo, track]);
 
-  const topics = useMemo(() => {
-    if (track !== 'NCERT') return chapters[classNo]?.[subject] || [];
-    return chapters[classNo]?.[subject] || [];
-  }, [classNo, subject, track]);
+  const topics = useMemo(() => chapters[classNo]?.[subject] || [], [classNo, subject]);
 
   const score = useMemo(
     () => questions.reduce((n, q, i) => n + (selected[i] === String(q.answer).trim().charAt(0).toUpperCase() ? 1 : 0), 0),
@@ -35,15 +35,23 @@ export default function PracticePage() {
   );
 
   async function generate() {
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    const currentRequest = ++requestNumber.current;
+
     setLoading(true);
     setError('');
     setQuestions([]);
     setSelected({});
     setSubmitted(false);
+
     try {
       const r = await fetch('/api/practice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        cache: 'no-store',
         body: JSON.stringify({
           classNo,
           subject,
@@ -52,16 +60,18 @@ export default function PracticePage() {
           track,
           level,
           count: 10,
-          requestId: `${classNo}-${subject}-${topic}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          requestId: `${classNo}-${subject}-${topic}-${track}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         }),
       });
       const d = await r.json();
       if (!r.ok) throw Error(d.error || 'Unable to generate questions');
+      if (controller.signal.aborted || currentRequest !== requestNumber.current) return;
       setQuestions(d.questions || []);
     } catch (e: any) {
+      if (e?.name === 'AbortError' || controller.signal.aborted || currentRequest !== requestNumber.current) return;
       setError(e.message || 'Unable to generate questions');
     } finally {
-      setLoading(false);
+      if (currentRequest === requestNumber.current) setLoading(false);
     }
   }
 
@@ -79,16 +89,26 @@ export default function PracticePage() {
     }
   }
 
+  // Read URL selections first. This prevents the old Physics defaults from generating
+  // before a Mathematics/other subject supplied by the dashboard has been applied.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const urlClass = p.get('class') || '12';
+    const nextClass = classes.includes(urlClass) ? urlClass : '12';
     const urlTrack = (p.get('track') || 'NCERT') as (typeof tracks)[number];
+    const nextTrack = tracks.includes(urlTrack) ? urlTrack : 'NCERT';
+    const availableSubjects = nextTrack === 'NCERT' ? (schoolSubjects[nextClass] || []) : [...competitiveTracks[nextTrack].subjects];
     const urlSubject = p.get('subject') || '';
+    const nextSubject = availableSubjects.includes(urlSubject) ? urlSubject : (availableSubjects[0] || '');
+    const availableTopics = chapters[nextClass]?.[nextSubject] || [];
     const urlTopic = p.get('chapter') || p.get('topic') || '';
-    setClassNo(classes.includes(urlClass) ? urlClass : '12');
-    setTrack(tracks.includes(urlTrack) ? urlTrack : 'NCERT');
-    if (urlSubject) setSubject(urlSubject);
-    if (urlTopic) setTopic(urlTopic);
+    const nextTopic = availableTopics.includes(urlTopic) ? urlTopic : (availableTopics[0] || 'General practice');
+
+    setClassNo(nextClass);
+    setTrack(nextTrack);
+    setSubject(nextSubject);
+    setTopic(nextTopic);
+    setInitialized(true);
   }, []);
 
   useEffect(() => {
@@ -101,11 +121,15 @@ export default function PracticePage() {
     if (!topics.includes(topic)) setTopic(topics[0]);
   }, [topics, topic]);
 
+  // Debounce selector changes so changing subject/class does not generate a request
+  // with an intermediate topic. Older requests are aborted and cannot overwrite the UI.
   useEffect(() => {
-    if (classNo && subject && topic) generate();
-    // Initial URL selection and selector changes should generate a fresh set.
+    if (!initialized || !classNo || !subject || !topic) return;
+    const timer = window.setTimeout(() => { void generate(); }, 250);
+    return () => window.clearTimeout(timer);
+    // generate intentionally uses the current selector state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classNo, subject, topic, track]);
+  }, [initialized, classNo, subject, topic, track, level]);
 
   return (
     <main className="min-h-screen bg-[#f5f7fa] px-5 py-8">
@@ -127,7 +151,7 @@ export default function PracticePage() {
             <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Difficulty<select value={level} onChange={e => setLevel(e.target.value)} className="mt-2 block w-full rounded-xl border border-slate-200 p-3 text-sm"><option>Basic</option><option>Application</option><option>Exam</option><option>JEE / NEET</option></select></label>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button onClick={generate} disabled={loading} className="btn-primary rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-50">{loading ? 'Generating…' : 'Generate fresh objective set'}</button>
+            <button onClick={() => void generate()} disabled={loading} className="btn-primary rounded-xl px-5 py-3 text-sm font-bold disabled:opacity-50">{loading ? 'Generating…' : 'Generate fresh objective set'}</button>
             <span className="text-xs text-slate-400">10 single-correct MCQs • answers revealed after submission</span>
           </div>
         </section>
@@ -145,7 +169,7 @@ export default function PracticePage() {
           })}
         </section>}
 
-        {questions.length > 0 && <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur"><div className="text-sm font-bold">{submitted ? <><CheckCircle2 className="mr-1 inline text-emerald-600" /> Score: {score}/{questions.length}</> : 'Choose an answer for each question.'}</div>{!submitted ? <button onClick={submit} className="btn-primary rounded-xl px-5 py-3 text-sm font-bold">Submit test</button> : <button onClick={generate} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold"><RotateCcw size={15} className="mr-2 inline" />New fresh set</button>}</div>}
+        {questions.length > 0 && <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur"><div className="text-sm font-bold">{submitted ? <><CheckCircle2 className="mr-1 inline text-emerald-600" /> Score: {score}/{questions.length}</> : 'Choose an answer for each question.'}</div>{!submitted ? <button onClick={() => void submit()} className="btn-primary rounded-xl px-5 py-3 text-sm font-bold">Submit test</button> : <button onClick={() => void generate()} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold"><RotateCcw size={15} className="mr-2 inline" />New fresh set</button>}</div>}
 
         <div className="mt-8 rounded-2xl bg-[#102a43] p-5 text-sm leading-6 text-blue-100"><Target size={18} className="mb-2" /><b>StudyFlow:</b> every set is generated for the selected class, subject, chapter and track. The questions are objective MCQs, and the correct answer plus explanation appears after submission.</div>
       </div>
