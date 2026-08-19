@@ -97,7 +97,7 @@ Return ONLY JSON: {"questions":[{"id":"q1","question":"...","options":["...","..
 
     const user = `Unique generation request: ${String(requestId)}\nGenerate ${generationTotal} fresh MCQs now. Class: ${safeClass}. Subject: ${safeSubject}. Chapter/topic: ${safeTopic}. Track: ${safeTrack}. Difficulty: ${safeLevel}. Return only questions from this exact subject and topic.`;
 
-    async function askAI(extra: string) {
+    const askAI = async (extra: string) => {
       const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -125,7 +125,7 @@ Return ONLY JSON: {"questions":[{"id":"q1","question":"...","options":["...","..
       }
       if (!Array.isArray(parsed?.questions)) throw Error('The AI response did not contain a questions array.');
       return parsed.questions.map((q: any, i: number) => cleanQuestion(q, i, safeSubject)).filter(Boolean).slice(0, total);
-    }
+    };
 
     let questions: any[] = [];
     let lastError = '';
